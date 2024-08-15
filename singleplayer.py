@@ -28,7 +28,7 @@ ICONS = ["0", "1", "2", "3"]
 NUMSSMALL = ["7", "8", "9", "10", "J", "Q" if not GERMAN_CARDS else "D", "K", "A"]
 NUMSALL = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q" if not GERMAN_CARDS else "D", "K", "A"]
 deck = []
-COMBINATIONS = ["High Card" "One Pair", "Two Pair", "Three of a Kind", "Straight", "Flush", "Full House", "Four of a Kind", "Straight Flush", "Royal Flush"]
+COMBINATIONS = ["High Card", "One Pair", "Two Pair", "Three of a Kind", "Straight", "Flush", "Full House", "Four of a Kind", "Straight Flush", "Royal Flush"]
 
 
 
@@ -66,6 +66,7 @@ class Player:
         self.cards = [[], [], [], [], []]
         self.wins = 0
         
+        self.highestCombinationCardNumber = ""
         self.combinations = []
         self.combinationScore = 0
     
@@ -76,6 +77,9 @@ class Player:
             self.cards[index] = card
         
     def calculateScore(self):
+        self.combinations = []
+        self.combinationScore = 0
+        self.highestCombinationCardNumber = ""
         if self.checkStreet() != False:
             self.cards = sortByIcons(self.cards)
             match self.checkStreet():
@@ -108,15 +112,25 @@ class Player:
         ThreeOfAKind = 0
         FourOfAKind = 0
         
+        pairsList = []
+        
         rank_counts = Counter(ranks)
         for rank, count in rank_counts.items():
             if count == 2:
                 pairs += 1
+                pairsList.append([0, rank])
             if count == 3:
                 ThreeOfAKind += 1
+                self.highestCombinationCardNumber = NUMSALL.index(rank)
             if count == 4:
+                self.highestCombinationCardNumber = NUMSALL.index(rank)
                 FourOfAKind += 1
 
+        pairsList = sortByNums(pairsList)
+        
+        pairsList.reverse()
+        
+        
         if ThreeOfAKind == 1 and pairs == 1:
             return "FullHouse"
         elif FourOfAKind == 1:
@@ -124,8 +138,10 @@ class Player:
         elif ThreeOfAKind == 1:
             return "ThreeOfAKind"
         elif pairs == 2:
+            self.highestCombinationCardNumber = NUMSALL.index(pairsList[0][1])
             return "2Pair"
         elif pairs == 1:
+            self.highestCombinationCardNumber = NUMSALL.index(pairsList[0][1])
             return "1Pair"
         else:
             return False
@@ -157,15 +173,19 @@ class Player:
         for i in range(len(sorted_ranks) - 1):
             if order_dict[sorted_ranks[i]] + 1 != order_dict[sorted_ranks[i + 1]]:
                 if allSame:
+                    self.highestCombinationCardNumber = NUMSALL.index(self.cards[5][1])
                     return "Flush"
                 return False
     
         
         if allSame and self.cards == [["2", "10"], ["2","J"], ["2", "Q" if not GERMAN_CARDS else "D"], ["2", "K"], ["2", "A"]]: # Royal Flush
+            self.highestCombinationCardNumber = NUMSALL.index("A")
             return "RoyalFlush"
         elif allSame:
+            self.highestCombinationCardNumber = NUMSALL.index(self.cards[5][1])
             return "StraightFlush"
         elif not allSame:
+            self.highestCombinationCardNumber = NUMSALL.index(self.cards[5][1])
             return "Straight"
         else:
             return False 
@@ -207,25 +227,50 @@ def prepare():
     return players, deck
 
 def calculateWinner(players: list):
-    winner = ["", 0] # id, score
+    scores = [] # id, score
+    winner = ["", 0]
     wins = 0
     
     for player in players:
-        if player.combinationScore == winner[1]:
-            pass
-        elif player.combinationScore > winner[1]:
-            winner = [player.id, player.combinationScore]
-        else:
-            continue
+        scores.append([player.id, player.combinationScore])
+
+    order = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    order_dict = {value: index for index, value in enumerate(order)}
+    sorted_scores = sorted(scores, key=lambda score: order_dict[score[1]])
+    
+    
+    winner = sorted_scores[len(sorted_scores)-1]
+    
+    winnerPlayerComb = 0
+    currentPlayerComb = 0
+    
+    hasSameCombination = False
+    
+    while True:
+        if sorted_scores[len(sorted_scores)-2][1] == winner[1]:
+            hasSameCombination = True
+            for player in players:
+                if player.id == winner[0]:
+                    winnerPlayerComb = player.highestCombinationCardNumber
+                    
+                elif player.id == sorted_scores[len(sorted_scores)-2][0]:
+                    currentPlayerComb = player.highestCombinationCardNumber
+        if int(currentPlayerComb) > int(winnerPlayerComb):
+            winner = sorted_scores[len(sorted_scores)-2]
+                    
+        #print(f"Player {player.id}: Player HCCN: {player.highestCombinationCardNumber}; ")
+            
+        break
 
     for player in players:
         if player.id == winner[0]:
             player.wins += 1
             wins = player.wins
             
-            
-    return f"Player {winner[0]} wins with a {COMBINATIONS[winner[1]-2]} point combination! Total wins: {wins}"
-
+    if not hasSameCombination:
+        return f"Player {winner[0]} wins with a {COMBINATIONS[winner[1]-1]} combination! Total wins: {wins}"
+    else:
+        return f"Same Combinations!! \nPlayer {winner[0]} wins with a {COMBINATIONS[winner[1]-1]} combination; Highest combination card: {NUMSALL[currentPlayerComb]}, Total wins: {wins}"
 
 
 
@@ -237,12 +282,14 @@ if __name__ == "__main__":
 
     won = False
     while won != True:
+        
+    
         print(f"---------- Round {round} ----------")
         
         # TODO: Print score if infinite mode
         
         print(f"Total cards in deck: {len(deck)}")
-        for player in players:
+        """for player in players:
             player.cards = sortByNums(player.cards)
             print(f"{player.name} has the following cards: {player.printCards()}")
             indexToRerollRaw = list(input("Enter index to reroll (separated with ',') -> ").replace(",", "").replace(" ", ""))
@@ -253,7 +300,16 @@ if __name__ == "__main__":
             player.generate(indexToReroll)
             print(f"{player.name} got the following cards: {player.printCards()}")
             player.calculateScore()
-            print(player.combinations)
+            print(player.combinations)"""
+        
+        
+        players[0].cards = [["0", "Q"], ["1", "Q"], ["2", "A"], ["3", "A"], ["2", "J"]]
+        print(f"{players[0].name} has the following cards: {players[0].printCards()}")
+        players[0].calculateScore()
+        
+        players[1].cards = [["3", "8"], ["1", "8"], ["3", "9"], ["0", "9"], ["3", "10"]]
+        print(f"{players[1].name} has the following cards: {players[1].printCards()}")
+        players[1].calculateScore()
         
         
         
